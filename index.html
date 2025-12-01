@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proctoring System 💻</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+/* ===== 🎨 GLASSMORPHISM DARK UI ===== */
+/* Global Styles */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* Dark, slightly textured background */
+  background: linear-gradient(135deg, #1f1f1f 0%, #0d0d0d 100%);
+  color: #e0e0e0;
+  margin: 0;
+  padding: 30px;
+  min-height: 100vh;
+}
+
+/* Glass effect mixin */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  padding: 20px;
+}
+
+.container { max-width: 1200px; margin: auto; }
+.header { text-align: center; margin-bottom: 30px; }
+.header h2 { color: #8aff8a; text-shadow: 0 0 10px rgba(138, 255, 138, 0.5); } 
+
+/* Controls Section */
+.controls {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  /* Allow wrapping for more controls */
+  flex-wrap: wrap; 
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2); 
+  border-radius: 10px;
+}
+.controls label { font-weight: 600; color: #b3ffb3; }
+
+input[type="number"], button {
+  padding: 10px 15px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+/* Added text inputs for student details */
+input[type="text"] {
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+input[type="number"] {
+  /* Inherits from the new shared styles */
+  width: 100px;
+}
+
+/* Button Styling */
+button {
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+#startBtn {
+  background: #34c759; 
+  color: #121212;
+}
+#startBtn:hover:not(:disabled) { background: #56e87a; }
+
+button:last-of-type { 
+  background: #ff3b30; 
+  color: #121212;
+}
+button:last-of-type:hover:not(:disabled) { background: #ff6055; }
+
+button:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: #888;
+  cursor: not-allowed;
+}
+
+/* Status Bar */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  margin: 15px 0 30px 0;
+  font-weight: bold;
+  padding: 15px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+}
+#status { color: #007aff; } 
+.timer { color: #ff9500; } 
+
+/* Main Layout */
+.main {
+  display: grid;
+  grid-template-columns: 3fr 1fr; 
+  gap: 30px;
+}
+
+/* Camera and Log Boxes */
+.camera-box, .log-box {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+.camera-box h3, .log-box h3 {
+  margin-top: 0;
+  color: #007aff; 
+}
+
+/* Video Feed */
+#camera {
+  width: 100%;
+  height: auto;
+  min-height: 360px;
+  border: 4px solid #007aff; 
+  box-shadow: 0 0 20px rgba(0, 122, 255, 0.5); 
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+/* Log Box */
+.log-box {
+  max-height: 500px;
+  overflow-y: auto;
+}
+.log-box h3 { color: #ff3b30; } 
+
+/* ===== LOG CORRECTION: FLEXBOX LAYOUT (Ensures no overlap) ===== */
+.log {
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 0;
+  display: flex; /* Use flexbox for structured layout */
+  gap: 10px; /* Space between time and reason */
+}
+
+.log-time {
+  font-weight: bold;
+  color: #e0e0e0; 
+  flex-shrink: 0; /* Ensures the time string doesn't wrap */
+  width: 90px; /* Fixed width for consistent alignment */
+}
+
+.log-reason {
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex-grow: 1; /* Allows the reason text to take up remaining space */
+}
+
+/* Highlight the latest log entry */
+.log-box .log:first-child .log-time,
+.log-box .log:first-child .log-reason {
+    color: #ff9500; /* Highlight latest entry in orange */
+}
+
+/* Scrollbar Style (Webkit) */
+.log-box::-webkit-scrollbar { width: 8px; }
+.log-box::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+.log-box::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<div class="header"><h2>📊 Automated Proctoring and Surveillance System</h2></div>
+
+<div class="controls">
+  <label for="studentName">Name:</label>
+  <input type="text" id="studentName" placeholder="Satyam Kumar">
+  <label for="subject">Subject:</label>
+  <input type="text" id="subject" placeholder="Maths">
+  <label for="chapter">Chapter:</label>
+  <input type="text" id="chapter" placeholder="Ch-01 REAL NUMBERS">
+  <label for="duration">Duration (min):</label>
+  <input type="number" id="duration" min="1" value="60">
+  <button id="startBtn" onclick="startExam()">🚀 Start Exam</button>
+  <button onclick="adminStop()">🛑 End Exam (Admin)</button>
+</div>
+
+<div class="status-bar">
+  <div>System Status: <span id="status">Idle</span></div>
+  <div class="timer">Remaining Time: <span id="timeLeft">--:--</span></div>
+</div>
+
+<div class="main">
+  <div class="camera-box">
+    <h3>Live Surveillance Feed</h3>
+    <video id="camera" width="100%" height="360" autoplay playsinline></video>
+    <canvas id="canvas" width="600" height="450" style="display:none"></canvas>
+  </div>
+
+  <div class="log-box">
+    <h3>🚨 Real-Time Violation Log</h3>
+    <div id="log"></div>
+  </div>
+</div>
+</div>
+
+<audio id="sound-tab" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+<audio id="sound-keyboard" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="sound-fullscreen" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+<audio id="sound-admin" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"></audio>
+
+<script>
+/* ===== CONFIG & GLOBALS ===== */
+const ADMIN_PASSWORD = "guardian123";
+
+const video=document.getElementById("camera");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+const statusText=document.getElementById("status");
+const logDiv=document.getElementById("log");
+const timeLeftSpan=document.getElementById("timeLeft");
+const startBtn=document.getElementById("startBtn");
+const durationInput=document.getElementById("duration");
+// New elements for student details
+const studentNameInput = document.getElementById("studentName");
+const subjectInput = document.getElementById("subject");
+const chapterInput = document.getElementById("chapter");
+
+let stream, examTimer, screenshotTimer, countdownTimer;
+let examRunning=false, remainingSeconds=0;
+let violations=[];
+let EXAM_START_TIMESTAMP = null; 
+
+/* ===== SOUND ===== */
+function playSound(id){
+  const s=document.getElementById(id);
+  s.currentTime=0;
+  s.play().catch(()=>{});
+}
+
+/* ===== FULLSCREEN ===== */
+function enterFullScreen(){ document.documentElement.requestFullscreen?.(); }
+function exitFullScreen(){ document.exitFullscreen?.(); }
+
+/* ===== START EXAM (Corrected for Start Time Accuracy) ===== */
+async function startExam(){
+  if(examRunning){ alert("Exam already running"); return; }
+
+  const minutes=Number(durationInput.value);
+  if(!minutes || minutes<=0){ alert("Enter valid duration"); return; }
+
+  // Validate student details
+  if(!studentNameInput.value || !subjectInput.value || !chapterInput.value){
+    alert("Please enter Name, Subject, and Chapter before starting.");
+    return;
+  }
+
+  EXAM_START_TIMESTAMP = Date.now();
+  
+  // Log official start event immediately
+  logViolation("Exam Session Initialized",""); 
+
+  examRunning=true;
+  durationInput.disabled=true;
+  startBtn.disabled=true;
+  studentNameInput.disabled = true;
+  subjectInput.disabled = true;
+  chapterInput.disabled = true;
+
+  enterFullScreen();
+
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    video.srcObject=stream;
+  }catch{
+    alert("Camera permission denied. Exam aborted.");
+    endExam(true); 
+    return;
+  }
+
+  remainingSeconds=minutes*60;
+  updateTimer();
+  statusText.innerText="Exam Running";
+
+  screenshotTimer=setInterval(takeScreenshot, 30000); 
+
+  examTimer=setTimeout(endExam,remainingSeconds*1000);
+
+  countdownTimer=setInterval(()=>{
+    remainingSeconds--;
+    updateTimer();
+    if(remainingSeconds <= 0){
+        if(examRunning) endExam(); 
+    }
+  },1000);
+}
+
+function takeScreenshot(){
+    if(!examRunning) return;
+    logViolation("Routine System Snapshot",""); 
+}
+
+/* ===== TIMER ===== */
+function updateTimer(){
+  const m=String(Math.floor(remainingSeconds/60)).padStart(2,"0");
+  const s=String(remainingSeconds%60).padStart(2,"0");
+  timeLeftSpan.innerText=`${m}:${s}`;
+}
+
+/* ===== LOG VIOLATION & SNAPSHOTS (Corrected Insertion) ===== */
+function logViolation(reason,soundId){
+  if(!examRunning && reason !== "End Exam button clicked (Admin attempt)" && reason !== "Exam Session Initialized") return; 
+  if(soundId) playSound(soundId);
+
+  canvas.width = video.videoWidth || 600;
+  canvas.height = video.videoHeight || 450;
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const timestamp=Date.now();
+  const time=new Date(timestamp).toLocaleTimeString();
+
+  violations.push({time,reason,timestamp,img:canvas.toDataURL("image/jpeg", 0.7)}); 
+
+  const div=document.createElement("div");
+  div.className="log";
+  
+  // CORRECTED: Use inner HTML structure with distinct spans for layout control
+  div.innerHTML=`
+    <span class="log-time">${time}</span>
+    <span class="log-reason">${reason}</span>
+  `;
+  
+  logDiv.prepend(div);
+}
+
+/* ===== ADMIN STOP (Password protected) ===== */
+function adminStop(){
+  if(!examRunning) return;
+  logViolation("End Exam button clicked (Admin attempt)","sound-admin");
+  const p=prompt("Admin password");
+  if(p===ADMIN_PASSWORD) endExam();
+  else alert("Wrong password");
+}
+
+/* ===== END EXAM (Corrected to handle failures) ===== */
+function endExam(wasCameraFailure = false){
+  if(!examRunning && !wasCameraFailure) return; 
+
+  examRunning=false;
+  clearInterval(examTimer);
+  clearInterval(countdownTimer);
+  clearInterval(screenshotTimer);
+  stream?.getTracks().forEach(t=>t.stop()); 
+  exitFullScreen();
+  studentNameInput.disabled = false;
+  subjectInput.disabled = false;
+  chapterInput.disabled = false;
+  statusText.innerText= wasCameraFailure ? "Exam Aborted (Camera Error)" : "Exam Ended";
+  generatePDF();
+}
+
+/* ===== PDF REPORT GENERATION (Enhanced and Corrected) ===== */
+function generatePDF(){
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
+  let y=15;
+
+  // --- Header and Summary ---
+  // Centered Title
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(24);
+  pdf.setTextColor(30, 144, 255); 
+  pdf.text("Proctoring System - Exam Surveillance Report", 105, y, null, null, 'center'); 
+  y+=20;
+
+  const examStart = EXAM_START_TIMESTAMP ? new Date(EXAM_START_TIMESTAMP).toLocaleString() : 'N/A';
+  const examEnd = new Date().toLocaleString();
+  const totalViolations = violations.filter(v => !v.reason.includes("System Snapshot") && !v.reason.includes("Initialized")).length; 
+  const studentName = studentNameInput.value || 'N/A';
+  const subject = subjectInput.value || 'N/A';
+  const chapter = chapterInput.value || 'N/A';
+
+  // --- Summary Statistics Box ---
+  pdf.setFontSize(14);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(50, 50, 50);
+  pdf.text("Exam Summary", 105, y, null, null, 'center');
+  y+=10;
+
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'normal');
+  // Using two columns for better layout
+  pdf.text(`Student Name: ${studentName}`, 15, y);
+  pdf.text(`Exam Start Time: ${examStart}`, 110, y); y+=7;
+  
+  pdf.text(`Subject: ${subject}`, 15, y);
+  pdf.text(`Exam End Time: ${examEnd}`, 110, y); y+=7;
+
+  pdf.text(`Chapter: ${chapter}`, 15, y);
+  pdf.text(`Total Snapshots: ${violations.length}`, 110, y); y+=12;
+
+  // --- Overall Status ---
+  pdf.setFontSize(14);
+  pdf.setFont('helvetica', 'bold');
+  if (totalViolations > 0) {
+    pdf.setTextColor(255, 0, 0); // Red for violations
+    pdf.text(`Overall Status: VIOLATIONS DETECTED (${totalViolations}) - REVIEW REQUIRED`, 105, y, null, null, 'center');
+  } else {
+    pdf.setTextColor(0, 128, 0); // Green for no violations
+    pdf.text("Overall Status: No Major Violations Detected", 105, y, null, null, 'center');
+  }
+  y+=10;
+
+  // --- ADD A NEW PAGE for the detailed log ---
+  pdf.addPage();
+  y = 15; // Reset the y-coordinate for the new page
+
+  // --- Violations Section Header ---
+  pdf.setFontSize(18);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(220, 20, 60); 
+  pdf.text("🚨 Detailed Incident Log", 10, y); y+=10;
+
+  pdf.line(10, y, 200, y);
+  y+=5;
+
+  if(violations.length===0){
+    pdf.setFontSize(14);
+    pdf.setTextColor(0, 128, 0);
+    pdf.text("No violations or snapshots detected. Exam Integrity Maintained ✅", 10, y);
+    y+=10;
+  }
+
+  // --- Violations List ---
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(0, 0, 0);
+
+  violations.forEach((v,i)=>{
+    if(y>250){ 
+      pdf.addPage(); 
+      y=15;
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(220, 20, 60);
+      pdf.text("Detailed Incident Log (Cont.)", 10, y); y+=10;
+
+      // --- FIX: Reset font size and style for the new page ---
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+    }
+    
+    const isViolation = !v.reason.includes("System Snapshot") && !v.reason.includes("Initialized");
+    const labelColor = isViolation ? [255, 0, 0] : [0, 0, 128]; 
+    const textColor = isViolation ? [139, 0, 0] : [50, 50, 50];
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...labelColor);
+    pdf.text(`${i+1}. ${v.time}`, 10, y); 
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(...textColor);
+
+    // --- TEXT WRAPPING FIX ---
+    // Calculate available width and split long text into lines
+    const textX = 35; // Starting X position for the reason text
+    const maxWidth = pdf.internal.pageSize.getWidth() - textX - 15; // Max width for the text
+    const reasonLines = pdf.splitTextToSize(v.reason, maxWidth);
+
+    // Render the (potentially multi-line) reason and increment y-position
+    pdf.text(reasonLines, textX, y);
+    y += (reasonLines.length * 5); // Increment y by the number of lines * line height
+
+    if(v.img){
+        pdf.addImage(v.img, "JPEG", 15, y, 50, 37.5);
+        y+=45; 
+    } else {
+        y+=5;
+    }
+  });
+
+  pdf.save("Proctoring_Report.pdf");
+}
+
+/* ===== SECURITY EVENT: BEFORE UNLOAD (Tab Close/Refresh Protection) ===== */
+window.addEventListener("beforeunload", (e) => {
+  if (examRunning) {
+    logViolation("Attempted to close/refresh tab", "sound-admin");
+    e.preventDefault();
+    e.returnValue = ''; 
+  }
+});
+
+
+/* ===== OTHER VIOLATION EVENTS ===== */
+window.addEventListener("blur",()=>logViolation("Tab switched (Focus Lost)","sound-tab"));
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden) logViolation("Tab minimized/Hidden","sound-tab");
+});
+document.addEventListener("keydown",()=>logViolation("Keyboard activity detected","sound-keyboard"));
+document.addEventListener("fullscreenchange",()=>{
+  if(!document.fullscreenElement && examRunning){
+    logViolation("Exited fullscreen mode","sound-fullscreen");
+    setTimeout(enterFullScreen,300);
+  }
+});
+</script>
+
+</body>
+</html>
